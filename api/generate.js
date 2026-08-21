@@ -1,35 +1,31 @@
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+  );
 
-function localApiPlugin() {
-  return {
-    name: 'local-api-plugin',
-    configureServer(server) {
-      server.middlewares.use('/api/generate', async (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method not allowed' }));
-          return;
-        }
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', async () => {
-          try {
-            const parsed = JSON.parse(body || '{}');
-            const { profileText, contextText, objective, tone, apiKey, userIdentity, userAdvantage } = parsed;
-            const env = loadEnv('', process.cwd(), '');
-            const keyToUse = apiKey || env.DEEPSEEK_API_KEY || env.VITE_DEEPSEEK_API_KEY;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-            if (!keyToUse) {
-              res.statusCode = 400;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'Clave API de DeepSeek no proporcionada. Configúrala en la aplicación.' }));
-              return;
-            }
+  try {
+    const { profileText, contextText, objective, tone, apiKey, userIdentity, userAdvantage } = req.body || {};
 
-            const systemPrompt = `Eres un experto en ventas B2B y copywriting de élite. Eres ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu mayor diferencial es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.
+    const keyToUse = apiKey || process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSEEK_API_KEY;
+
+    if (!keyToUse) {
+      return res.status(400).json({ error: 'Clave API de DeepSeek no configurada. Ingresa tu API Key en la configuración o en las variables de entorno de Vercel (DEEPSEEK_API_KEY).' });
+    }
+
+    const systemPrompt = `Eres un experto en ventas B2B y copywriting de élite. Eres ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu mayor diferencial es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.
 
 Tu tarea es analizar el perfil de LinkedIn proporcionado y redactar 3 opciones de mensajes hiper-personalizados, con excelente ortografía, una estructura persuasiva y un desarrollo más robusto y maduro.
 
@@ -53,44 +49,32 @@ Reglas Estrictas:
   "opcion_3": "texto del mensaje"
 }`;
 
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${keyToUse}`
-              },
-              body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                  { role: 'system', content: systemPrompt },
-                  { role: 'user', content: `Perfil del contacto:\n${profileText}` }
-                ],
-                response_format: { type: 'json_object' }
-              })
-            });
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${keyToUse}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Perfil del contacto:\n${profileText}` }
+        ],
+        response_format: { type: 'json_object' }
+      })
+    });
 
-            const resText = await response.text();
-            res.statusCode = response.status;
-            res.setHeader('Content-Type', 'application/json');
-            if (!response.ok) {
-              res.end(JSON.stringify({ error: `DeepSeek Error: ${resText}` }));
-            } else {
-              const data = JSON.parse(resText);
-              const content = JSON.parse(data.choices[0].message.content);
-              res.end(JSON.stringify(content));
-            }
-          } catch (e) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: e.message }));
-          }
-        });
-      });
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ error: `DeepSeek API Error: ${errorText}` });
     }
-  };
-}
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss(), localApiPlugin()],
-})
+    const data = await response.json();
+    const content = JSON.parse(data.choices[0].message.content);
+    return res.status(200).json(content);
+  } catch (error) {
+    console.error('Error en /api/generate:', error);
+    return res.status(500).json({ error: error.message || 'Error interno del servidor' });
+  }
+}
