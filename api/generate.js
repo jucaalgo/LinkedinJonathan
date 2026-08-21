@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { profileText, contextText, objective, tone, apiKey, userIdentity, userAdvantage } = req.body || {};
+    const { profileText, contextText, selectedNews, objective, tone, apiKey, userIdentity, userAdvantage } = req.body || {};
 
     const keyToUse = apiKey || process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSEEK_API_KEY;
 
@@ -29,13 +29,26 @@ export default async function handler(req, res) {
     if (objective === 'conexion') {
       objectiveInstruction = '- SOLICITUD DE CONEXIÓN (Nota inicial). NUNCA intentes vender. Solo felicita un logro o proyecto reciente con un gancho genuino. (LÍMITE ESTRICTO: Menos de 300 caracteres).';
     } else if (objective === 'followup') {
-      objectiveInstruction = '- MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up / Venta Suave). Estructura ágil y concisa de EXACTAMENTE 2 PÁRRAFOS potentes:\n  • Párrafo 1 (Gancho + Conexión): Agradece brevemente la conexión, conecta con su último proyecto o noticia y menciona de forma natural tu visión como Director de Cámara y ex-bailarín clásico.\n  • Párrafo 2 (Propuesta de Valor + Cierre suave): Explica cómo tu enfoque en biomecánica, timing escénico e iluminación eleva las piezas visuales/rodajes, cerrando con una pregunta abierta o compartiendo tu dossier/reel sin presión.';
+      objectiveInstruction = '- MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up / Venta Suave). Estructura ágil y concisa de EXACTAMENTE 2 PÁRRAFOS potentes (ni largo ni telegráfico):\n  • Párrafo 1 (Gancho + Conexión): Agradece brevemente la conexión, conecta con su último proyecto o noticia y menciona de forma natural tu visión como Director de Cámara y ex-bailarín clásico.\n  • Párrafo 2 (Propuesta de Valor + Cierre suave): Explica cómo tu enfoque en biomecánica, timing escénico e iluminación eleva las piezas visuales/rodajes, cerrando con una pregunta abierta o compartiendo tu dossier/reel sin presión.';
     } else {
       objectiveInstruction = '- SOLICITUD DE REUNIÓN DIRECTA (Comercial). Estructura contundente de 2 a 3 párrafos claros: 1) Gancho de alto impacto, 2) Propuesta concreta de colaboración para sus próximas producciones de foto/video, 3) Llamado a la acción directo para una breve videollamada o café.';
     }
 
-    const newsSection = contextText && contextText.trim()
-      ? `\nNOTICIA / CONTEXTO RECIENTE: "${contextText}". DEBES integrar este hito en el gancho inicial para demostrar conocimiento real de su trayectoria.`
+    // Unir contexto manual y noticias detectadas si existen
+    let fullContext = '';
+    if (contextText && contextText.trim()) {
+      fullContext += `Contexto manual: ${contextText.trim()}. `;
+    }
+    if (selectedNews) {
+      if (typeof selectedNews === 'string' && selectedNews.trim()) {
+        fullContext += `Noticia/Evento reciente detectado: "${selectedNews.trim()}". `;
+      } else if (Array.isArray(selectedNews) && selectedNews.length > 0) {
+        fullContext += `Noticias/Eventos detectados: ${selectedNews.map(n => typeof n === 'string' ? n : `"${n.title}" (${n.source}, ${n.pubDate})`).join(' | ')}. `;
+      }
+    }
+
+    const newsSection = fullContext.trim()
+      ? `\nNOTICIA / EVENTO RECIENTE DE SU TRAYECTORIA: "${fullContext.trim()}". DEBES integrar este hito en el gancho inicial para demostrar conocimiento real y actualizado de su trabajo.`
       : '';
 
     const systemPrompt = `Eres un estratega de prospección B2B y copywriter cinematográfico de élite. Representas a ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu ventaja competitiva única es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.

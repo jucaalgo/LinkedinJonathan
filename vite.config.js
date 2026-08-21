@@ -6,6 +6,120 @@ function localApiPlugin() {
   return {
     name: 'local-api-plugin',
     configureServer(server) {
+      // 1. Endpoint para escanear noticias
+      server.middlewares.use('/api/scan-news', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const parsed = JSON.parse(body || '{}');
+            const { profileText, apiKey } = parsed;
+            const env = loadEnv('', process.cwd(), '');
+            const keyToUse = apiKey || env.DEEPSEEK_API_KEY || env.VITE_DEEPSEEK_API_KEY;
+
+            let searchQueries = [];
+            let entityInfo = { name: '', company: '', sector: '' };
+
+            if (keyToUse) {
+              try {
+                const extractionPrompt = `Analiza este perfil de LinkedIn y extrae:
+1. Nombre completo de la persona.
+2. Empresa actual, productora, agencia o teatro donde trabaja.
+3. Sector principal (ej: Publicidad, Danza, Teatro, Cine, Moda).
+4. Genera exactamente 2 términos de búsqueda en Google News (en español) para encontrar noticias recientes, campañas o eventos relacionados con esta persona o su empresa en España.
+
+Devuelve SOLO un JSON con esta estructura exacta:
+{
+  "name": "Nombre",
+  "company": "Empresa",
+  "sector": "Sector",
+  "queries": ["término 1", "término 2"]
+}`;
+
+                const extractRes = await fetch('https://api.deepseek.com/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${keyToUse}`
+                  },
+                  body: JSON.stringify({
+                    model: 'deepseek-chat',
+                    messages: [
+                      { role: 'system', content: extractionPrompt },
+                      { role: 'user', content: profileText }
+                    ],
+                    response_format: { type: 'json_object' }
+                  })
+                });
+
+                if (extractRes.ok) {
+                  const extractData = await extractRes.json();
+                  const p = JSON.parse(extractData.choices[0].message.content);
+                  entityInfo = { name: p.name || '', company: p.company || '', sector: p.sector || '' };
+                  if (Array.isArray(p.queries)) searchQueries = p.queries;
+                }
+              } catch (_) {}
+            }
+
+            if (searchQueries.length === 0) {
+              const firstLine = (profileText || '').split('\n')[0] || '';
+              searchQueries.push(firstLine.substring(0, 35));
+            }
+
+            const newsResults = [];
+            const seen = new Set();
+
+            for (const query of searchQueries.slice(0, 2)) {
+              if (!query || query.trim().length < 3) continue;
+              try {
+                const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query + ' when:1y')}&hl=es&gl=ES&ceid=ES:es`;
+                const rssRes = await fetch(rssUrl, {
+                  headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                });
+
+                if (rssRes.ok) {
+                  const xml = await rssRes.text();
+                  const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?(?:<source.*?>(.*?)<\/source>)?[\s\S]*?<\/item>/gi;
+                  let match;
+
+                  while ((match = itemRegex.exec(xml)) !== null && newsResults.length < 5) {
+                    let title = match[1] ? match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').replace(/&quot;/g, '"').replace(/&amp;/g, '&') : '';
+                    let link = match[2] || '';
+                    let pubDate = match[3] || '';
+                    let source = match[4] ? match[4].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1') : 'Medio de Prensa';
+
+                    let formattedDate = pubDate;
+                    try {
+                      formattedDate = new Date(pubDate).toLocaleDateString('es-ES', { month: 'short', year: 'numeric', day: 'numeric' });
+                    } catch (_) {}
+
+                    if (title && !seen.has(title)) {
+                      seen.add(title);
+                      newsResults.push({ title, link, pubDate: formattedDate, source });
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ entity: entityInfo, news: newsResults }));
+          } catch (e) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+      });
+
+      // 2. Endpoint para generar mensajes
       server.middlewares.use('/api/generate', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -18,7 +132,7 @@ function localApiPlugin() {
         req.on('end', async () => {
           try {
             const parsed = JSON.parse(body || '{}');
-            const { profileText, contextText, objective, tone, apiKey, userIdentity, userAdvantage } = parsed;
+            const { profileText, contextText, selectedNews, objective, tone, apiKey, userIdentity, userAdvantage } = parsed;
             const env = loadEnv('', process.cwd(), '');
             const keyToUse = apiKey || env.DEEPSEEK_API_KEY || env.VITE_DEEPSEEK_API_KEY;
 
@@ -38,8 +152,14 @@ function localApiPlugin() {
               objectiveInstruction = '- SOLICITUD DE REUNIÓN DIRECTA (Comercial). Estructura contundente de 2 a 3 párrafos claros: 1) Gancho de alto impacto, 2) Propuesta concreta de colaboración para sus próximas producciones de foto/video, 3) Llamado a la acción directo para una breve videollamada o café.';
             }
 
-            const newsSection = contextText && contextText.trim()
-              ? `\nNOTICIA / CONTEXTO RECIENTE: "${contextText}". DEBES integrar este hito en el gancho inicial para demostrar conocimiento real de su trayectoria.`
+            let fullContext = '';
+            if (contextText && contextText.trim()) fullContext += `Contexto: ${contextText.trim()}. `;
+            if (selectedNews && typeof selectedNews === 'string' && selectedNews.trim()) {
+              fullContext += `Noticia/Evento reciente: "${selectedNews.trim()}". `;
+            }
+
+            const newsSection = fullContext.trim()
+              ? `\nNOTICIA / EVENTO RECIENTE DE SU TRAYECTORIA: "${fullContext.trim()}". DEBES integrar este hito en el gancho inicial para demostrar conocimiento real y actualizado de su trabajo.`
               : '';
 
             const systemPrompt = `Eres un estratega de prospección B2B y copywriter cinematográfico de élite. Representas a ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu ventaja competitiva única es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.
@@ -101,7 +221,6 @@ Reglas Inquebrantables:
   };
 }
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), localApiPlugin()],
 })

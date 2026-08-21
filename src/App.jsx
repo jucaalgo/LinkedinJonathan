@@ -16,11 +16,15 @@ import {
   BookOpen, 
   Newspaper, 
   Film, 
-  Flame, 
-  ChevronRight, 
-  Layers, 
+  Search, 
+  Radio, 
+  CheckCircle2, 
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Building2,
+  Calendar,
+  Layers,
+  Sparkle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,6 +34,13 @@ function App() {
   const [objective, setObjective] = useState('followup');
   const [tone, setTone] = useState('creativo');
   
+  // News Radar State
+  const [scanningNews, setScanningNews] = useState(false);
+  const [detectedNews, setDetectedNews] = useState([]);
+  const [selectedNewsTitle, setSelectedNewsTitle] = useState('');
+  const [detectedEntity, setDetectedEntity] = useState(null);
+  const [scanError, setScanError] = useState(null);
+
   // Settings State
   const [apiKey, setApiKey] = useState(
     import.meta.env.VITE_DEEPSEEK_API_KEY || localStorage.getItem('vh_apiKey') || ''
@@ -57,6 +68,48 @@ function App() {
     setShowSettings(false);
   };
 
+  // 1. Escanear Noticias y Eventos de Forma Autónoma
+  const handleScanNews = async () => {
+    if (!profileText.trim()) {
+      setError('Pega primero el perfil para que el radar sepa a quién buscar.');
+      return;
+    }
+
+    setScanningNews(true);
+    setScanError(null);
+    setDetectedNews([]);
+    setDetectedEntity(null);
+
+    try {
+      const response = await fetch('/api/scan-news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileText, apiKey })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudieron consultar noticias.');
+      }
+
+      setDetectedEntity(data.entity);
+      setDetectedNews(data.news || []);
+
+      if (data.news && data.news.length > 0) {
+        // Auto-seleccionar la primera noticia más relevante
+        setSelectedNewsTitle(data.news[0].title);
+      } else {
+        setScanError('No se encontraron noticias recientes con este perfil. Puedes agregar contexto manual.');
+      }
+    } catch (err) {
+      console.error('Scan error:', err);
+      setScanError(err.message || 'Error al conectar con el radar de noticias.');
+    } finally {
+      setScanningNews(false);
+    }
+  };
+
+  // 2. Generar Mensajes
   const generateMessages = async () => {
     if (!profileText.trim()) {
       setError('Por favor, pega el perfil o la trayectoria del contacto.');
@@ -70,12 +123,11 @@ function App() {
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           profileText,
           contextText,
+          selectedNews: selectedNewsTitle,
           objective,
           tone,
           apiKey,
@@ -116,13 +168,13 @@ function App() {
       </div>
 
       {/* HEADER */}
-      <header className="relative z-20 border-b border-white/[0.08] bg-[#0b0d14]/80 backdrop-blur-xl px-6 py-4 sticky top-0">
+      <header className="relative z-20 border-b border-white/[0.08] bg-[#0b0d14]/85 backdrop-blur-xl px-6 py-4 sticky top-0">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           
           {/* Logo & Title */}
           <div className="flex items-center gap-3.5">
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
                 <Film className="w-5 h-5 text-white" />
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-[#0b0d14] animate-pulse" />
@@ -131,14 +183,14 @@ function App() {
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-bold tracking-tight text-white font-['Outfit']">Visual Hunter</h1>
                 <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  Studio AI
+                  Radar AI
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-medium">Prospección & Dirección de Cámara B2B</p>
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Actions */}
           <div className="flex items-center gap-2.5">
             <button 
               onClick={() => setShowHelp(true)}
@@ -184,8 +236,6 @@ function App() {
               </div>
 
               <div className="p-6 space-y-6 overflow-y-auto text-sm text-slate-300">
-                
-                {/* Step 1 */}
                 <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
                   <div className="flex items-center gap-2 text-indigo-400 font-bold font-['Outfit']">
                     <span className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-300">1</span>
@@ -202,29 +252,25 @@ function App() {
                   </div>
                 </div>
 
-                {/* Step 2 */}
                 <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
                   <div className="flex items-center gap-2 text-indigo-400 font-bold font-['Outfit']">
                     <span className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-300">2</span>
-                    El Embudo en 2 Fases (No vendas al conectar)
+                    Nuevo Radar de Noticias y Eventos
                   </div>
-                  <ul className="text-xs space-y-2 text-slate-300 list-disc list-inside">
-                    <li><strong className="text-indigo-300">Fase 1 (Conexión):</strong> Mensaje corto (menos de 300 caracteres). Solo elogia un proyecto o felicita por su trayectoria. Cero ofertas comerciales.</li>
-                    <li><strong className="text-indigo-300">Fase 2 (Tras aceptar):</strong> A los 2 o 3 días, envías el mensaje de 2 párrafos que genera esta app, vinculando la biomecánica de la danza con la dirección de cámara.</li>
-                  </ul>
-                </div>
-
-                {/* Step 3 */}
-                <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
-                  <div className="flex items-center gap-2 text-indigo-400 font-bold font-['Outfit']">
-                    <span className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-300">3</span>
-                    La Clave: El Campo "Noticia o Contexto"
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Si el director acaba de estrenar un videoclip, un comercial o una obra de teatro, copia ese dato en la caja de <em>Noticia</em>. La IA lo usará de rompehielos de alta categoría.
+                  <p className="text-xs text-slate-300">
+                    Pega el texto del perfil del contacto y pulsa en <strong className="text-indigo-300">"Escanear Noticias & Eventos"</strong>. El sistema buscará en medios de prensa y festivales en tiempo real. Selecciona el evento que más te guste y la IA lo usará de gancho automático.
                   </p>
                 </div>
 
+                <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
+                  <div className="flex items-center gap-2 text-indigo-400 font-bold font-['Outfit']">
+                    <span className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-300">3</span>
+                    Estructura Concisa de 2 Párrafos
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    El mensaje tras aceptar la conexión está calibrado en 2 párrafos ágiles para no abrumar al cliente pero demostrando el valor de tu técnica de danza e iluminación en set.
+                  </p>
+                </div>
               </div>
 
               <div className="p-4 border-t border-white/10 bg-[#0b0d14] flex justify-end">
@@ -264,7 +310,6 @@ function App() {
               </div>
 
               <div className="p-6 space-y-5 overflow-y-auto text-xs">
-                
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="font-semibold text-indigo-300">DeepSeek API Key (Opcional si está en Vercel)</label>
@@ -299,7 +344,6 @@ function App() {
                     className="w-full h-28 bg-black/40 border border-white/10 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors resize-none leading-relaxed"
                   />
                 </div>
-
               </div>
 
               <div className="p-4 border-t border-white/10 bg-[#0b0d14] flex justify-end">
@@ -316,10 +360,10 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* MAIN CONTAINER */}
+      {/* MAIN CONTENT */}
       <main className="relative z-10 max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
         
-        {/* LEFT COLUMN: INPUTS */}
+        {/* LEFT COLUMN: INPUTS & RADAR */}
         <section className="lg:col-span-5 space-y-6">
           <div className="glass-panel rounded-2xl p-5 sm:p-6 border border-white/[0.08] shadow-2xl space-y-5">
             
@@ -339,22 +383,139 @@ function App() {
               <textarea
                 value={profileText}
                 onChange={(e) => setProfileText(e.target.value)}
-                className="w-full h-32 glass-input rounded-xl p-3.5 text-xs focus:outline-none transition-all resize-none text-slate-200 placeholder:text-slate-600 leading-relaxed font-sans"
+                className="w-full h-28 glass-input rounded-xl p-3.5 text-xs focus:outline-none transition-all resize-none text-slate-200 placeholder:text-slate-600 leading-relaxed font-sans"
                 placeholder="Pega aquí el texto del perfil del Director de Arte, Productor o Creativo..."
               />
             </div>
 
-            {/* Context / News Input */}
+            {/* RADAR DE NOTICIAS AUTÓNOMO */}
+            <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/25 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Radio className={`w-4 h-4 ${scanningNews ? 'text-indigo-400 animate-spin' : 'text-indigo-400'}`} />
+                  <span className="text-xs font-bold text-white font-['Outfit']">Radar Autónomo de Noticias</span>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={handleScanNews}
+                  disabled={scanningNews || !profileText.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 hover:text-white border border-indigo-500/40 text-[11px] font-semibold transition-all flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shadow-sm shadow-indigo-900/30"
+                >
+                  {scanningNews ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Buscando en prensa...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-3 h-3" />
+                      <span>Escanear Noticias y Eventos</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Detected Entity Tag */}
+              {detectedEntity && (detectedEntity.name || detectedEntity.company) && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {detectedEntity.name && (
+                    <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/10 text-[10px] text-slate-300">
+                      👤 {detectedEntity.name}
+                    </span>
+                  )}
+                  {detectedEntity.company && (
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-300 flex items-center gap-1">
+                      <Building2 className="w-3 h-3" /> {detectedEntity.company}
+                    </span>
+                  )}
+                  {detectedEntity.sector && (
+                    <span className="px-2 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/20 text-[10px] text-violet-300">
+                      🎬 {detectedEntity.sector}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Detected News Cards */}
+              {detectedNews.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-[11px] font-semibold text-slate-400">
+                    Selecciona el evento o noticia que servirá como gancho:
+                  </p>
+                  
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                    {detectedNews.map((news, idx) => {
+                      const isSelected = selectedNewsTitle === news.title;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => setSelectedNewsTitle(isSelected ? '' : news.title)}
+                          className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'bg-indigo-600/20 border-indigo-400/60 shadow-md shadow-indigo-950/50' 
+                              : 'bg-black/30 border-white/5 hover:border-white/15'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-[11px] font-medium leading-snug ${isSelected ? 'text-indigo-200' : 'text-slate-300'}`}>
+                              {news.title}
+                            </p>
+                            <div className="shrink-0 mt-0.5">
+                              {isSelected ? (
+                                <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border border-white/20" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 mt-1.5 text-[9px] text-slate-500 font-mono">
+                            <span className="text-indigo-400">{news.source}</span>
+                            <span>•</span>
+                            <span>{news.pubDate}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {selectedNewsTitle && (
+                    <button 
+                      onClick={() => setSelectedNewsTitle('')}
+                      className="text-[10px] text-slate-500 hover:text-slate-300 underline pt-1 cursor-pointer"
+                    >
+                      Deseleccionar noticia (usar solo contexto manual)
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {scanError && (
+                <p className="text-[11px] text-amber-400/90 pt-1 leading-relaxed">
+                  ⚠️ {scanError}
+                </p>
+              )}
+            </div>
+
+            {/* Context / News Input (Manual override) */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
-                <Newspaper className="w-3.5 h-3.5 text-indigo-400" />
-                Noticia, Campaña o Contexto Reciente <span className="text-slate-500 font-normal">(Opcional)</span>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Newspaper className="w-3.5 h-3.5 text-indigo-400" />
+                  Contexto Adicional Manual <span className="text-slate-500 font-normal">(Opcional)</span>
+                </span>
+                {selectedNewsTitle && (
+                  <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
+                    Noticia vinculada
+                  </span>
+                )}
               </label>
               <textarea
                 value={contextText}
                 onChange={(e) => setContextText(e.target.value)}
-                className="w-full h-20 glass-input rounded-xl p-3.5 text-xs focus:outline-none transition-all resize-none text-slate-200 placeholder:text-slate-600 leading-relaxed"
-                placeholder="Ej: Acaban de lanzar el anuncio de primavera de Loewe, o estrenaron obra en Teatros del Canal..."
+                className="w-full h-16 glass-input rounded-xl p-3 text-xs focus:outline-none transition-all resize-none text-slate-200 placeholder:text-slate-600 leading-relaxed"
+                placeholder="Añade algún detalle adicional si lo deseas..."
               />
             </div>
 
@@ -365,7 +526,7 @@ function App() {
               </label>
               <div className="grid grid-cols-1 gap-2">
                 {[
-                  { id: 'conexion', label: '1. Solicitud de Conexión', desc: '< 300 caracteres · Cero Ventas' },
+                  { id: 'conexion', label: '1. Solicitud de Conexión', desc: '< 300 caracteres · Elogio & Cero Ventas' },
                   { id: 'followup', label: '2. Tras Aceptar (Venta Suave)', desc: '2 Párrafos ágiles · Biomecánica & Cámara' },
                   { id: 'reunion', label: '3. Solicitud de Reunión', desc: 'Comercial · Directo a videollamada' }
                 ].map((item) => (
@@ -435,12 +596,12 @@ function App() {
             <button
               onClick={generateMessages}
               disabled={loading}
-              className="w-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-xl shadow-indigo-600/25 cursor-pointer font-['Outfit'] tracking-wide text-sm"
+              className="w-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-xl shadow-indigo-600/25 cursor-pointer font-['Outfit'] tracking-wide text-sm"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Analizando con DeepSeek...</span>
+                  <span>Redactando con DeepSeek...</span>
                 </>
               ) : (
                 <>
@@ -464,7 +625,7 @@ function App() {
               </div>
               <h3 className="text-base font-bold text-slate-200 font-['Outfit'] mb-1">Centro de Redacción Estratégica</h3>
               <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
-                Pega el perfil de un director de arte o productor a la izquierda y genera 3 variantes de copywriting listas para enviar.
+                Pega el perfil a la izquierda, activa el <strong>Radar de Noticias</strong> para descubrir eventos recientes y genera 3 variantes de copywriting listas para enviar.
               </p>
             </div>
           )}
@@ -478,7 +639,7 @@ function App() {
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-200 font-['Outfit']">Cruzando datos con tu ventaja competitiva...</p>
-                <p className="text-xs text-slate-500 mt-1">Sintetizando biomecánica, timing escénico e iluminación en 2 párrafos.</p>
+                <p className="text-xs text-slate-500 mt-1">Sintetizando biomecánica, timing escénico e iluminación en 2 párrafos concisos.</p>
               </div>
             </div>
           )}
