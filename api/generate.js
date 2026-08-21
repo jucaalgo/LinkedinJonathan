@@ -27,50 +27,62 @@ export default async function handler(req, res) {
 
     let objectiveInstruction = '';
     if (objective === 'conexion') {
-      objectiveInstruction = '- SOLICITUD DE CONEXIÓN (Nota inicial). NUNCA intentes vender. Solo felicita un logro o proyecto reciente con un gancho genuino. (LÍMITE ESTRICTO: Menos de 300 caracteres).';
+      objectiveInstruction = `OBJETIVO: SOLICITUD DE CONEXIÓN INICIAL (Nota en invitación de LinkedIn).
+REGLA ESTRICTA DE LONGITUD: Máximo 290 caracteres (LinkedIn impone un límite infranqueable de 300 caracteres).
+CONTENIDO: Elogio sincero y específico sobre su trabajo o noticia reciente. CERO intención de venta, solo conectar por afinidad artística/profesional.`;
     } else if (objective === 'followup') {
-      objectiveInstruction = '- MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up / Venta Suave). Estructura ágil y concisa de EXACTAMENTE 2 PÁRRAFOS potentes (ni largo ni telegráfico):\n  • Párrafo 1 (Gancho + Conexión): Agradece brevemente la conexión, conecta con su último proyecto o noticia y menciona de forma natural tu visión como Director de Cámara y ex-bailarín clásico.\n  • Párrafo 2 (Propuesta de Valor + Cierre suave): Explica cómo tu enfoque en biomecánica, timing escénico e iluminación eleva las piezas visuales/rodajes, cerrando con una pregunta abierta o compartiendo tu dossier/reel sin presión.';
+      objectiveInstruction = `OBJETIVO: MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up de Alto Impacto).
+REGLA OBLIGATORIA DE EXTENSIÓN: El mensaje DEBE TENER ENTRE 1.200 Y 1.800 CARACTERES (aproximadamente 200 a 300 palabras). No escribas textos cortos o telegráficos; debe ser un mensaje completo, elocuente y exhaustivo.
+ESTRUCTURA OBLIGATORIA EN PÁRRAFOS:
+1. APERTURA Y GANCHO CONTEXTUAL: Agradecimiento cálido por conectar. Análisis profundo de su trabajo, última campaña o hito reciente (usando la noticia/contexto proporcionado). Demuestra que conoces su lenguaje visual.
+2. EL DIFERENCIAL ARTÍSTICO Y BIOMECÁNICA: Explica con autoridad cómo tu background como ex-bailarín clásico profesional (Conservatorio Mariemma) se traduce en la dirección y operación de cámara. Detalla cómo entiendes la biomecánica, el ritmo del espacio escénico y cómo "respiras" con el talento en set para capturar el clímax del movimiento con precisión milimétrica.
+3. DOMINIO TÉCNICO INTEGRAL: Menciona el diseño de iluminación dramática adaptada a la narrativa y el flujo completo hasta el color grading final en DaVinci Resolve para entregar un acabado cinematográfico de primer nivel sin necesidad de micromanagement.
+4. CIERRE ELEGANTE Y DE BAJA FRICCIÓN: Propuesta de valor abierta para estar en su radar cuando surjan producciones que requieran este nivel de dinamismo corporal y lumínico, invitando a ver tu reel o dossier.`;
     } else {
-      objectiveInstruction = '- SOLICITUD DE REUNIÓN DIRECTA (Comercial). Estructura contundente de 2 a 3 párrafos claros: 1) Gancho de alto impacto, 2) Propuesta concreta de colaboración para sus próximas producciones de foto/video, 3) Llamado a la acción directo para una breve videollamada o café.';
+      objectiveInstruction = `OBJETIVO: PROPUESTA COMERCIAL Y SOLICITUD DE REUNIÓN DIRECTA.
+REGLA OBLIGATORIA DE EXTENSIÓN: ENTRE 1.200 Y 1.800 CARACTERES. Mensaje sólido, estructurado y de alta persuasión B2B.
+ESTRUCTURA:
+1. Gancho de alto impacto sobre sus producciones audiovisuales o publicitarias.
+2. Demostración de valor: por qué un Director de Cámara especializado en biomecánica y artes escénicas resuelve los cuellos de botella en la dirección de actores/bailarines/talento en set.
+3. Propuesta clara de sinergia para sus próximos rodajes o campañas.
+4. Llamado a la acción directo para una breve videollamada o café esta semana.`;
     }
 
-    // Unir contexto manual y noticias detectadas si existen
+    // Contexto enriquecido
     let fullContext = '';
     if (contextText && contextText.trim()) {
-      fullContext += `Contexto manual: ${contextText.trim()}. `;
+      fullContext += `Contexto manual provisto: ${contextText.trim()}. `;
     }
-    if (selectedNews) {
-      if (typeof selectedNews === 'string' && selectedNews.trim()) {
-        fullContext += `Noticia/Evento reciente detectado: "${selectedNews.trim()}". `;
-      } else if (Array.isArray(selectedNews) && selectedNews.length > 0) {
-        fullContext += `Noticias/Eventos detectados: ${selectedNews.map(n => typeof n === 'string' ? n : `"${n.title}" (${n.source}, ${n.pubDate})`).join(' | ')}. `;
-      }
+    if (selectedNews && typeof selectedNews === 'string' && selectedNews.trim()) {
+      fullContext += `Noticia/Evento de actualidad detectado: "${selectedNews.trim()}". `;
     }
 
     const newsSection = fullContext.trim()
-      ? `\nNOTICIA / EVENTO RECIENTE DE SU TRAYECTORIA: "${fullContext.trim()}". DEBES integrar este hito en el gancho inicial para demostrar conocimiento real y actualizado de su trabajo.`
+      ? `\nINFORMACIÓN DE ACTUALIDAD Y PROYECTOS RECIENTES: "${fullContext.trim()}". DEBES integrar inteligentemente este hito en el análisis inicial del mensaje.`
       : '';
 
-    const systemPrompt = `Eres un estratega de prospección B2B y copywriter cinematográfico de élite. Representas a ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu ventaja competitiva única es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.
+    const systemPrompt = `Eres un copywriter cinematográfico de élite y director de prospección B2B. Escribes en nombre de ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}.
+Diferencial clave del remitente: ${userAdvantage || 'Ex-bailarín clásico profesional (Mariemma), especialista en biomecánica, ritmo escénico, iluminación dramática y DaVinci Resolve'}.
 
-Tu misión: Analizar el perfil y redactar 3 opciones de mensajes con impecable gusto estético, tono humano, directo y sin relleno corporativo.
-
-Objetivo estratégico seleccionado: 
 ${objectiveInstruction}
-Tono: ${tone || 'creativo'}.${newsSection}
 
-Reglas Inquebrantables:
-1. Prohibidos los clichés de ventas: NUNCA uses "espero te encuentres bien", "hacer sinergia", "solución innovadora", "revolucionar". Escribe como un creador visual seguro de su arte.
-2. Cada opción debe tener un ángulo distintivo:
-   - Opción 1 (Dirección & Biomecánica): Enfoque en la precisión del movimiento corporal, luz dramática y cómo respiras con el talento en set.
-   - Opción 2 (Estética & Noticia/Campaña): Basada en su actualidad, campañas o producciones recientes, proponiendo una estética visual refinada.
-   - Opción 3 (Colega / Consultivo): Directo, entre profesionales del sector, enfocado en optimizar el flujo visual de sus próximos proyectos.
-3. Formato de salida: JSON estricto con esta estructura:
+Tono general requerido: ${tone || 'creativo'} (profesional, culto, cinematográfico, seguro de su arte y sin clichés).${newsSection}
+
+CRITERIOS DE EXCELENCIA DE REDACCIÓN:
+1. PROHIBICIÓN ABSOLUTA DE CLICHÉS: NUNCA uses "espero te encuentres bien", "espero que este mensaje te encuentre bien", "hacer sinergia", "solución innovadora", "revolucionar". Escribe con la voz de un cineasta/fotógrafo con criterio estético de autor.
+2. CUIDADO GRAMATICAL Y RIQUEZA LÉXICA: Puntuación impecable, transiciones fluidas entre párrafos, terminología precisa de dirección de cámara (ritmo, encuadre, biomecánica, etalonaje, esquemas de luz).
+3. DISTINCIÓN DE LAS 3 VARIANTES:
+   - Opción 1 (Enfoque Dirección de Cámara & Biomecánica): Enfatiza la coreografía de la cámara, el lenguaje del cuerpo y la anticipación del movimiento en set.
+   - Opción 2 (Enfoque Narrativa Estética & Noticia/Actualidad): Desarrolla el mensaje anclado en su campaña o proyecto reciente, proponiendo una visión visual sofisticada.
+   - Opción 3 (Enfoque Consultivo / Sinergia de Producción): Aborda los desafíos habituales en rodajes comerciales/escénicos y cómo tu visión integral agiliza y potencia la producción.
+4. LONGITUD: Asegúrate de que las opciones 1, 2 y 3 para Follow-up y Reunión alcancen entre 1.200 y 1.800 caracteres cada una.
+
+Formato de salida: JSON estricto con esta estructura:
 {
-  "analisis_perfil": "1 o 2 frases con el diagnóstico del perfil y el ángulo estratégico elegido.",
-  "opcion_1": "texto completo del mensaje",
-  "opcion_2": "texto del mensaje",
-  "opcion_3": "texto del mensaje"
+  "analisis_perfil": "1 o 2 frases con el diagnóstico estratégico de la trayectoria del prospecto y el ángulo de entrada.",
+  "opcion_1": "texto completo y desarrollado del mensaje",
+  "opcion_2": "texto completo y desarrollado del mensaje",
+  "opcion_3": "texto completo y desarrollado del mensaje"
 }`;
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {

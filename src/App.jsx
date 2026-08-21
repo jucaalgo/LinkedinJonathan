@@ -24,7 +24,9 @@ import {
   Building2,
   Calendar,
   Layers,
-  Sparkle
+  Sparkle,
+  AlignLeft,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -68,7 +70,7 @@ function App() {
     setShowSettings(false);
   };
 
-  // 1. Escanear Noticias y Eventos de Forma Autónoma
+  // 1. Escanear Noticias y Eventos de Forma Autónoma (Top 3)
   const handleScanNews = async () => {
     if (!profileText.trim()) {
       setError('Pega primero el perfil para que el radar sepa a quién buscar.');
@@ -93,13 +95,13 @@ function App() {
       }
 
       setDetectedEntity(data.entity);
-      setDetectedNews(data.news || []);
+      const top3News = (data.news || []).slice(0, 3);
+      setDetectedNews(top3News);
 
-      if (data.news && data.news.length > 0) {
-        // Auto-seleccionar la primera noticia más relevante
-        setSelectedNewsTitle(data.news[0].title);
+      if (top3News.length > 0) {
+        setSelectedNewsTitle(top3News[0].title);
       } else {
-        setScanError('No se encontraron noticias recientes con este perfil. Puedes agregar contexto manual.');
+        setScanError('No se encontraron noticias recientes para este perfil en prensa. Puedes usar contexto manual.');
       }
     } catch (err) {
       console.error('Scan error:', err);
@@ -109,7 +111,7 @@ function App() {
     }
   };
 
-  // 2. Generar Mensajes
+  // 2. Generar Mensajes con Longitud 1.200 - 1.800 Caracteres
   const generateMessages = async () => {
     if (!profileText.trim()) {
       setError('Por favor, pega el perfil o la trayectoria del contacto.');
@@ -186,7 +188,7 @@ function App() {
                   Radar AI
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-medium">Prospección & Dirección de Cámara B2B</p>
+              <p className="text-xs text-slate-400 font-medium">Dirección de Cámara & Prospección B2B</p>
             </div>
           </div>
 
@@ -255,20 +257,20 @@ function App() {
                 <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
                   <div className="flex items-center gap-2 text-indigo-400 font-bold font-['Outfit']">
                     <span className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-300">2</span>
-                    Nuevo Radar de Noticias y Eventos
+                    Radar de Noticias (Top 3 Relevantes)
                   </div>
                   <p className="text-xs text-slate-300">
-                    Pega el texto del perfil del contacto y pulsa en <strong className="text-indigo-300">"Escanear Noticias & Eventos"</strong>. El sistema buscará en medios de prensa y festivales en tiempo real. Selecciona el evento que más te guste y la IA lo usará de gancho automático.
+                    Pega el texto del perfil del contacto y pulsa en <strong className="text-indigo-300">"Escanear Noticias y Eventos"</strong>. El sistema buscará en Google News las 3 noticias más recientes de la persona o su empresa para anclar tu mensaje en su actualidad.
                   </p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
                   <div className="flex items-center gap-2 text-indigo-400 font-bold font-['Outfit']">
                     <span className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-300">3</span>
-                    Estructura Concisa de 2 Párrafos
+                    Redacción Extensa y Estructurada (1.200 - 1.800 Caracteres)
                   </div>
                   <p className="text-xs text-slate-300">
-                    El mensaje tras aceptar la conexión está calibrado en 2 párrafos ágiles para no abrumar al cliente pero demostrando el valor de tu técnica de danza e iluminación en set.
+                    Los mensajes tras aceptar conexión están estructurados a fondo con tu visión de danza clásica (Conservatorio Mariemma), biomecánica escénica, ritmo de cámara y postproducción de color en DaVinci Resolve.
                   </p>
                 </div>
               </div>
@@ -388,7 +390,7 @@ function App() {
               />
             </div>
 
-            {/* RADAR DE NOTICIAS AUTÓNOMO */}
+            {/* RADAR DE NOTICIAS AUTÓNOMO (TOP 3) */}
             <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/25 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -437,11 +439,12 @@ function App() {
                 </div>
               )}
 
-              {/* Detected News Cards */}
+              {/* Detected Top 3 News Cards */}
               {detectedNews.length > 0 && (
                 <div className="space-y-2 pt-1">
-                  <p className="text-[11px] font-semibold text-slate-400">
-                    Selecciona el evento o noticia que servirá como gancho:
+                  <p className="text-[11px] font-semibold text-slate-400 flex items-center justify-between">
+                    <span>Selecciona el evento o noticia que servirá de gancho:</span>
+                    <span className="text-[10px] text-indigo-400 font-mono">Top {detectedNews.length}</span>
                   </p>
                   
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
@@ -507,7 +510,7 @@ function App() {
                 </span>
                 {selectedNewsTitle && (
                   <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
-                    Noticia vinculada
+                    Noticia activa
                   </span>
                 )}
               </label>
@@ -521,14 +524,20 @@ function App() {
 
             {/* Phase Selector */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-300">
-                Fase de Prospección
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-300">
+                  Fase de Prospección
+                </label>
+                <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 font-mono">
+                  1.200 - 1.800 caract.
+                </span>
+              </div>
+              
               <div className="grid grid-cols-1 gap-2">
                 {[
-                  { id: 'conexion', label: '1. Solicitud de Conexión', desc: '< 300 caracteres · Elogio & Cero Ventas' },
-                  { id: 'followup', label: '2. Tras Aceptar (Venta Suave)', desc: '2 Párrafos ágiles · Biomecánica & Cámara' },
-                  { id: 'reunion', label: '3. Solicitud de Reunión', desc: 'Comercial · Directo a videollamada' }
+                  { id: 'conexion', label: '1. Solicitud de Conexión', desc: '< 300 caracteres (Límite LinkedIn) · Elogio & Cero Ventas' },
+                  { id: 'followup', label: '2. Tras Aceptar Conexión (Follow-up)', desc: '1.200 - 1.800 carac. · Filosofía de Movimiento, Biomecánica & Solución' },
+                  { id: 'reunion', label: '3. Solicitud de Reunión', desc: '1.200 - 1.800 carac. · Propuesta Comercial de Sinergia' }
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -601,7 +610,7 @@ function App() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Redactando con DeepSeek...</span>
+                  <span>Redactando propuesta cinematográfica...</span>
                 </>
               ) : (
                 <>
@@ -625,7 +634,7 @@ function App() {
               </div>
               <h3 className="text-base font-bold text-slate-200 font-['Outfit'] mb-1">Centro de Redacción Estratégica</h3>
               <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
-                Pega el perfil a la izquierda, activa el <strong>Radar de Noticias</strong> para descubrir eventos recientes y genera 3 variantes de copywriting listas para enviar.
+                Pega el perfil a la izquierda, activa el <strong>Radar de Noticias</strong> para descubrir las 3 noticias más recientes y genera propuestas de alto impacto (1.200 - 1.800 caracteres).
               </p>
             </div>
           )}
@@ -638,8 +647,8 @@ function App() {
                 <Film className="w-6 h-6 text-indigo-400 absolute inset-0 m-auto animate-pulse" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-200 font-['Outfit']">Cruzando datos con tu ventaja competitiva...</p>
-                <p className="text-xs text-slate-500 mt-1">Sintetizando biomecánica, timing escénico e iluminación en 2 párrafos concisos.</p>
+                <p className="text-sm font-bold text-slate-200 font-['Outfit']">Redactando propuesta estructurada y exhaustiva...</p>
+                <p className="text-xs text-slate-500 mt-1">Integrando biomecánica, dirección de cámara, iluminación dramática y etalonaje.</p>
               </div>
             </div>
           )}
@@ -656,7 +665,7 @@ function App() {
                 <div className="flex items-center gap-2 mb-1.5">
                   <Sparkles className="w-4 h-4 text-indigo-400" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-300 font-['Outfit']">
-                    Diagnóstico del Contacto
+                    Diagnóstico Estratégico del Contacto
                   </h3>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
@@ -668,68 +677,78 @@ function App() {
               <div className="space-y-4">
                 {[
                   { 
-                    tag: 'Opción 1: Enfoque Biomecánica & Dirección', 
+                    tag: 'Opción 1: Enfoque Dirección de Cámara & Biomecánica', 
                     icon: '🎬', 
                     text: results.opcion_1 
                   },
                   { 
-                    tag: 'Opción 2: Enfoque Campaña & Actualidad', 
+                    tag: 'Opción 2: Enfoque Narrativa Visual & Actualidad', 
                     icon: '✨', 
                     text: results.opcion_2 
                   },
                   { 
-                    tag: 'Opción 3: Enfoque Colega & Consultivo', 
+                    tag: 'Opción 3: Enfoque Sinergia & Consultivo', 
                     icon: '🤝', 
                     text: results.opcion_3 
                   }
-                ].map((item, idx) => (
-                  <motion.div 
-                    key={idx}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.08 }}
-                    className="glass-card rounded-2xl p-5 border border-white/[0.08] hover:border-indigo-500/30 transition-all shadow-xl group relative"
-                  >
-                    <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{item.icon}</span>
-                        <span className="text-xs font-bold text-indigo-300 font-['Outfit']">
-                          {item.tag}
+                ].map((item, idx) => {
+                  const charLength = item.text?.length || 0;
+                  const isOptimalLength = charLength >= 1100 && charLength <= 1900;
+                  
+                  return (
+                    <motion.div 
+                      key={idx}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.08 }}
+                      className="glass-card rounded-2xl p-5 border border-white/[0.08] hover:border-indigo-500/30 transition-all shadow-xl group relative"
+                    >
+                      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{item.icon}</span>
+                          <span className="text-xs font-bold text-indigo-300 font-['Outfit']">
+                            {item.tag}
+                          </span>
+                        </div>
+                        
+                        <button
+                          onClick={() => copyToClipboard(item.text, idx)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            copiedIndex === idx
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-white/[0.05] hover:bg-indigo-600 text-slate-300 hover:text-white border border-white/10'
+                          }`}
+                        >
+                          {copiedIndex === idx ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>¡Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copiar</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-line font-sans">
+                        {item.text}
+                      </div>
+
+                      <div className="mt-3.5 pt-2.5 border-t border-white/[0.04] flex justify-between items-center text-[10px] text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                          <FileText className="w-3 h-3 text-indigo-400" />
+                          <span>Redacción exhaustiva y estructurada</span>
+                        </span>
+                        <span className="font-mono px-2 py-0.5 rounded bg-white/[0.03] border border-white/[0.05] text-slate-400">
+                          {charLength} caracteres {isOptimalLength && '✓'}
                         </span>
                       </div>
-                      
-                      <button
-                        onClick={() => copyToClipboard(item.text, idx)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                          copiedIndex === idx
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                            : 'bg-white/[0.05] hover:bg-indigo-600 text-slate-300 hover:text-white border border-white/10'
-                        }`}
-                      >
-                        {copiedIndex === idx ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>¡Copiado!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copiar</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-line font-sans">
-                      {item.text}
-                    </div>
-
-                    <div className="mt-3 pt-2.5 border-t border-white/[0.04] flex justify-between items-center text-[10px] text-slate-500">
-                      <span>Estructura de 2 párrafos concisos</span>
-                      <span>{item.text?.length || 0} caracteres</span>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
 
             </motion.div>

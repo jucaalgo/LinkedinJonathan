@@ -6,7 +6,7 @@ function localApiPlugin() {
   return {
     name: 'local-api-plugin',
     configureServer(server) {
-      // 1. Endpoint para escanear noticias
+      // 1. Endpoint para escanear noticias (Top 3)
       server.middlewares.use('/api/scan-news', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -28,18 +28,18 @@ function localApiPlugin() {
 
             if (keyToUse) {
               try {
-                const extractionPrompt = `Analiza este perfil de LinkedIn y extrae:
+                const extractionPrompt = `Analiza este perfil de LinkedIn y extrae con máxima precisión:
 1. Nombre completo de la persona.
-2. Empresa actual, productora, agencia o teatro donde trabaja.
-3. Sector principal (ej: Publicidad, Danza, Teatro, Cine, Moda).
-4. Genera exactamente 2 términos de búsqueda en Google News (en español) para encontrar noticias recientes, campañas o eventos relacionados con esta persona o su empresa en España.
+2. Empresa actual, productora, agencia, teatro o colectivo donde trabaja.
+3. Sector artístico/comercial principal.
+4. Genera exactamente 2 términos de búsqueda específicos para Google News España sobre sus proyectos, campañas, estrenos o premios recientes.
 
-Devuelve SOLO un JSON con esta estructura exacta:
+Devuelve SOLO JSON estricto:
 {
   "name": "Nombre",
-  "company": "Empresa",
+  "company": "Empresa o Colectivo",
   "sector": "Sector",
-  "queries": ["término 1", "término 2"]
+  "queries": ["query 1", "query 2"]
 }`;
 
                 const extractRes = await fetch('https://api.deepseek.com/chat/completions', {
@@ -76,7 +76,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
             const seen = new Set();
 
             for (const query of searchQueries.slice(0, 2)) {
-              if (!query || query.trim().length < 3) continue;
+              if (!query || query.trim().length < 3 || newsResults.length >= 3) continue;
               try {
                 const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query + ' when:1y')}&hl=es&gl=ES&ceid=ES:es`;
                 const rssRes = await fetch(rssUrl, {
@@ -88,8 +88,8 @@ Devuelve SOLO un JSON con esta estructura exacta:
                   const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?(?:<source.*?>(.*?)<\/source>)?[\s\S]*?<\/item>/gi;
                   let match;
 
-                  while ((match = itemRegex.exec(xml)) !== null && newsResults.length < 5) {
-                    let title = match[1] ? match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').replace(/&quot;/g, '"').replace(/&amp;/g, '&') : '';
+                  while ((match = itemRegex.exec(xml)) !== null && newsResults.length < 3) {
+                    let title = match[1] ? match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'") : '';
                     let link = match[2] || '';
                     let pubDate = match[3] || '';
                     let source = match[4] ? match[4].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1') : 'Medio de Prensa';
@@ -110,7 +110,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ entity: entityInfo, news: newsResults }));
+            res.end(JSON.stringify({ entity: entityInfo, news: newsResults.slice(0, 3) }));
           } catch (e) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
@@ -119,7 +119,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
         });
       });
 
-      // 2. Endpoint para generar mensajes
+      // 2. Endpoint para generar mensajes (1200 - 1800 caracteres)
       server.middlewares.use('/api/generate', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -145,43 +145,59 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
             let objectiveInstruction = '';
             if (objective === 'conexion') {
-              objectiveInstruction = '- SOLICITUD DE CONEXIÓN (Nota inicial). NUNCA intentes vender. Solo felicita un logro o proyecto reciente con un gancho genuino. (LÍMITE ESTRICTO: Menos de 300 caracteres).';
+              objectiveInstruction = `OBJETIVO: SOLICITUD DE CONEXIÓN INICIAL (Nota en invitación de LinkedIn).
+REGLA ESTRICTA DE LONGITUD: Máximo 290 caracteres (LinkedIn impone un límite infranqueable de 300 caracteres).
+CONTENIDO: Elogio sincero y específico sobre su trabajo o noticia reciente. CERO intención de venta, solo conectar por afinidad artística/profesional.`;
             } else if (objective === 'followup') {
-              objectiveInstruction = '- MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up / Venta Suave). Estructura ágil y concisa de EXACTAMENTE 2 PÁRRAFOS potentes:\n  • Párrafo 1 (Gancho + Conexión): Agradece brevemente la conexión, conecta con su último proyecto o noticia y menciona de forma natural tu visión como Director de Cámara y ex-bailarín clásico.\n  • Párrafo 2 (Propuesta de Valor + Cierre suave): Explica cómo tu enfoque en biomecánica, timing escénico e iluminación eleva las piezas visuales/rodajes, cerrando con una pregunta abierta o compartiendo tu dossier/reel sin presión.';
+              objectiveInstruction = `OBJETIVO: MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up de Alto Impacto).
+REGLA OBLIGATORIA DE EXTENSIÓN: El mensaje DEBE TENER ENTRE 1.200 Y 1.800 CARACTERES (aproximadamente 200 a 300 palabras). No escribas textos cortos o telegráficos; debe ser un mensaje completo, elocuente y exhaustivo.
+ESTRUCTURA OBLIGATORIA EN PÁRRAFOS:
+1. APERTURA Y GANCHO CONTEXTUAL: Agradecimiento cálido por conectar. Análisis profundo de su trabajo, última campaña o hito reciente (usando la noticia/contexto proporcionado). Demuestra que conoces su lenguaje visual.
+2. EL DIFERENCIAL ARTÍSTICO Y BIOMECÁNICA: Explica con autoridad cómo tu background como ex-bailarín clásico profesional (Conservatorio Mariemma) se traduce en la dirección y operación de cámara. Detalla cómo entiendes la biomecánica, el ritmo del espacio escénico y cómo "respiras" con el talento en set para capturar el clímax del movimiento con precisión milimétrica.
+3. DOMINIO TÉCNICO INTEGRAL: Menciona el diseño de iluminación dramática adaptada a la narrativa y el flujo completo hasta el color grading final en DaVinci Resolve para entregar un acabado cinematográfico de primer nivel sin necesidad de micromanagement.
+4. CIERRE ELEGANTE Y DE BAJA FRICCIÓN: Propuesta de valor abierta para estar en su radar cuando surjan producciones que requieran este nivel de dinamismo corporal y lumínico, invitando a ver tu reel o dossier.`;
             } else {
-              objectiveInstruction = '- SOLICITUD DE REUNIÓN DIRECTA (Comercial). Estructura contundente de 2 a 3 párrafos claros: 1) Gancho de alto impacto, 2) Propuesta concreta de colaboración para sus próximas producciones de foto/video, 3) Llamado a la acción directo para una breve videollamada o café.';
+              objectiveInstruction = `OBJETIVO: PROPUESTA COMERCIAL Y SOLICITUD DE REUNIÓN DIRECTA.
+REGLA OBLIGATORIA DE EXTENSIÓN: ENTRE 1.200 Y 1.800 CARACTERES. Mensaje sólido, estructurado y de alta persuasión B2B.
+ESTRUCTURA:
+1. Gancho de alto impacto sobre sus producciones audiovisuales o publicitarias.
+2. Demostración de valor: por qué un Director de Cámara especializado en biomecánica y artes escénicas resuelve los cuellos de botella en la dirección de actores/bailarines/talento en set.
+3. Propuesta clara de sinergia para sus próximos rodajes o campañas.
+4. Llamado a la acción directo para una breve videollamada o café esta semana.`;
             }
 
             let fullContext = '';
-            if (contextText && contextText.trim()) fullContext += `Contexto: ${contextText.trim()}. `;
+            if (contextText && contextText.trim()) fullContext += `Contexto manual: ${contextText.trim()}. `;
             if (selectedNews && typeof selectedNews === 'string' && selectedNews.trim()) {
               fullContext += `Noticia/Evento reciente: "${selectedNews.trim()}". `;
             }
 
             const newsSection = fullContext.trim()
-              ? `\nNOTICIA / EVENTO RECIENTE DE SU TRAYECTORIA: "${fullContext.trim()}". DEBES integrar este hito en el gancho inicial para demostrar conocimiento real y actualizado de su trabajo.`
+              ? `\nINFORMACIÓN DE ACTUALIDAD Y PROYECTOS RECIENTES: "${fullContext.trim()}". DEBES integrar inteligentemente este hito en el análisis inicial del mensaje.`
               : '';
 
-            const systemPrompt = `Eres un estratega de prospección B2B y copywriter cinematográfico de élite. Representas a ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu ventaja competitiva única es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.
+            const systemPrompt = `Eres un copywriter cinematográfico de élite y director de prospección B2B. Escribes en nombre de ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}.
+Diferencial clave del remitente: ${userAdvantage || 'Ex-bailarín clásico profesional (Mariemma), especialista en biomecánica, ritmo escénico, iluminación dramática y DaVinci Resolve'}.
 
-Tu misión: Analizar el perfil y redactar 3 opciones de mensajes con impecable gusto estético, tono humano, directo y sin relleno corporativo.
-
-Objetivo estratégico seleccionado: 
 ${objectiveInstruction}
-Tono: ${tone || 'creativo'}.${newsSection}
 
-Reglas Inquebrantables:
-1. Prohibidos los clichés de ventas: NUNCA uses "espero te encuentres bien", "hacer sinergia", "solución innovadora", "revolucionar". Escribe como un creador visual seguro de su arte.
-2. Cada opción debe tener un ángulo distintivo:
-   - Opción 1 (Dirección & Biomecánica): Enfoque en la precisión del movimiento corporal, luz dramática y cómo respiras con el talento en set.
-   - Opción 2 (Estética & Noticia/Campaña): Basada en su actualidad, campañas o producciones recientes, proponiendo una estética visual refinada.
-   - Opción 3 (Colega / Consultivo): Directo, entre profesionales del sector, enfocado en optimizar el flujo visual de sus próximos proyectos.
-3. Formato de salida: JSON estricto con esta estructura:
+Tono general requerido: ${tone || 'creativo'} (profesional, culto, cinematográfico, seguro de su arte y sin clichés).${newsSection}
+
+CRITERIOS DE EXCELENCIA DE REDACCIÓN:
+1. PROHIBICIÓN ABSOLUTA DE CLICHÉS: NUNCA uses "espero te encuentres bien", "espero que este mensaje te encuentre bien", "hacer sinergia", "solución innovadora", "revolucionar". Escribe con la voz de un cineasta/fotógrafo con criterio estético de autor.
+2. CUIDADO GRAMATICAL Y RIQUEZA LÉXICA: Puntuación impecable, transiciones fluidas entre párrafos, terminología precisa de dirección de cámara (ritmo, encuadre, biomecánica, etalonaje, esquemas de luz).
+3. DISTINCIÓN DE LAS 3 VARIANTES:
+   - Opción 1 (Enfoque Dirección de Cámara & Biomecánica): Enfatiza la coreografía de la cámara, el lenguaje del cuerpo y la anticipación del movimiento en set.
+   - Opción 2 (Enfoque Narrativa Estética & Noticia/Actualidad): Desarrolla el mensaje anclado en su campaña o proyecto reciente, proponiendo una visión visual sofisticada.
+   - Opción 3 (Enfoque Consultivo / Sinergia de Producción): Aborda los desafíos habituales en rodajes comerciales/escénicos y cómo tu visión integral agiliza y potencia la producción.
+4. LONGITUD: Asegúrate de que las opciones 1, 2 y 3 para Follow-up y Reunión alcancen entre 1.200 y 1.800 caracteres cada una.
+
+Formato de salida: JSON estricto con esta estructura:
 {
-  "analisis_perfil": "1 o 2 frases con el diagnóstico del perfil y el ángulo estratégico elegido.",
-  "opcion_1": "texto completo del mensaje",
-  "opcion_2": "texto del mensaje",
-  "opcion_3": "texto del mensaje"
+  "analisis_perfil": "1 o 2 frases con el diagnóstico estratégico de la trayectoria del prospecto y el ángulo de entrada.",
+  "opcion_1": "texto completo y desarrollado del mensaje",
+  "opcion_2": "texto completo y desarrollado del mensaje",
+  "opcion_3": "texto completo y desarrollado del mensaje"
 }`;
 
             const response = await fetch('https://api.deepseek.com/chat/completions', {

@@ -28,21 +28,21 @@ export default async function handler(req, res) {
     let searchQueries = [];
     let entityInfo = { name: '', company: '', sector: '' };
 
-    // 1. Extraer entidades clave con DeepSeek si hay API key disponible
+    // 1. Extraer entidades clave con DeepSeek
     if (keyToUse) {
       try {
-        const extractionPrompt = `Analiza este perfil de LinkedIn y extrae:
+        const extractionPrompt = `Analiza este perfil de LinkedIn y extrae con máxima precisión:
 1. Nombre completo de la persona.
-2. Empresa actual, productora, agencia o teatro donde trabaja.
-3. Sector principal (ej: Publicidad, Danza, Teatro, Cine, Moda).
-4. Genera exactamente 2 o 3 términos de búsqueda en Google News (en español) para encontrar noticias recientes, campañas o eventos relacionados con esta persona o su empresa en España.
+2. Empresa actual, productora, agencia, teatro o colectivo donde trabaja.
+3. Sector artístico/comercial principal.
+4. Genera exactamente 2 términos de búsqueda específicos para Google News España sobre sus proyectos, campañas, estrenos o premios recientes.
 
-Devuelve SOLO un JSON con esta estructura exacta:
+Devuelve SOLO JSON estricto:
 {
   "name": "Nombre",
-  "company": "Empresa",
+  "company": "Empresa o Colectivo",
   "sector": "Sector",
-  "queries": ["término 1", "término 2"]
+  "queries": ["query 1", "query 2"]
 }`;
 
         const extractRes = await fetch('https://api.deepseek.com/chat/completions', {
@@ -70,24 +70,24 @@ Devuelve SOLO un JSON con esta estructura exacta:
           }
         }
       } catch (e) {
-        console.warn('Extracción IA falló, usando extracción básica por fallback:', e);
+        console.warn('Fallo en extracción IA:', e);
       }
     }
 
     // Fallback de queries si no se extrajeron con IA
     if (searchQueries.length === 0) {
-      const lines = profileText.split('\n').filter(l => l.trim().length > 0);
+      const lines = profileText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const firstLine = lines[0] || '';
-      searchQueries.push(firstLine.substring(0, 40));
+      searchQueries.push(firstLine.substring(0, 35));
       if (entityInfo.company) searchQueries.push(`${entityInfo.company} Madrid`);
     }
 
-    // 2. Consultar Google News RSS
+    // 2. Consultar Google News RSS (Estrictamente las 3 noticias más recientes)
     const newsResults = [];
     const seenTitles = new Set();
 
     for (const query of searchQueries.slice(0, 2)) {
-      if (!query || query.trim().length < 3) continue;
+      if (!query || query.trim().length < 3 || newsResults.length >= 3) continue;
       try {
         const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query + ' when:1y')}&hl=es&gl=ES&ceid=ES:es`;
         const rssRes = await fetch(rssUrl, {
@@ -98,18 +98,15 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
         if (rssRes.ok) {
           const xmlText = await rssRes.text();
-          
-          // Simple XML regex parser for RSS items
           const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?(?:<source.*?>(.*?)<\/source>)?[\s\S]*?<\/item>/gi;
           let match;
 
-          while ((match = itemRegex.exec(xmlText)) !== null && newsResults.length < 5) {
-            let title = match[1] ? match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').replace(/&quot;/g, '"').replace(/&amp;/g, '&') : '';
+          while ((match = itemRegex.exec(xmlText)) !== null && newsResults.length < 3) {
+            let title = match[1] ? match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'") : '';
             let link = match[2] || '';
             let pubDate = match[3] || '';
             let source = match[4] ? match[4].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1') : 'Medio de Prensa';
 
-            // Formatear fecha legible
             let formattedDate = pubDate;
             try {
               const d = new Date(pubDate);
@@ -129,14 +126,15 @@ Devuelve SOLO un JSON con esta estructura exacta:
           }
         }
       } catch (err) {
-        console.warn(`Error buscando query ${query}:`, err);
+        console.warn(`Error en query ${query}:`, err);
       }
     }
 
+    // Devolver estrictamente máximo 3 noticias
     return res.status(200).json({
       entity: entityInfo,
-      news: newsResults,
-      count: newsResults.length
+      news: newsResults.slice(0, 3),
+      count: Math.min(newsResults.length, 3)
     });
 
   } catch (error) {
