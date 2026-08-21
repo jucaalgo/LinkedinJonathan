@@ -25,26 +25,37 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Clave API de DeepSeek no configurada. Ingresa tu API Key en la configuración o en las variables de entorno de Vercel (DEEPSEEK_API_KEY).' });
     }
 
-    const systemPrompt = `Eres un experto en ventas B2B y copywriting de élite. Eres ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu mayor diferencial es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.
+    let objectiveInstruction = '';
+    if (objective === 'conexion') {
+      objectiveInstruction = '- SOLICITUD DE CONEXIÓN (Nota inicial). NUNCA intentes vender. Solo felicita un logro o proyecto reciente con un gancho genuino. (LÍMITE ESTRICTO: Menos de 300 caracteres).';
+    } else if (objective === 'followup') {
+      objectiveInstruction = '- MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up / Venta Suave). Estructura ágil y concisa de EXACTAMENTE 2 PÁRRAFOS potentes:\n  • Párrafo 1 (Gancho + Conexión): Agradece brevemente la conexión, conecta con su último proyecto o noticia y menciona de forma natural tu visión como Director de Cámara y ex-bailarín clásico.\n  • Párrafo 2 (Propuesta de Valor + Cierre suave): Explica cómo tu enfoque en biomecánica, timing escénico e iluminación eleva las piezas visuales/rodajes, cerrando con una pregunta abierta o compartiendo tu dossier/reel sin presión.';
+    } else {
+      objectiveInstruction = '- SOLICITUD DE REUNIÓN DIRECTA (Comercial). Estructura contundente de 2 a 3 párrafos claros: 1) Gancho de alto impacto, 2) Propuesta concreta de colaboración para sus próximas producciones de foto/video, 3) Llamado a la acción directo para una breve videollamada o café.';
+    }
 
-Tu tarea es analizar el perfil de LinkedIn proporcionado y redactar 3 opciones de mensajes hiper-personalizados, con excelente ortografía, una estructura persuasiva y un desarrollo más robusto y maduro.
+    const newsSection = contextText && contextText.trim()
+      ? `\nNOTICIA / CONTEXTO RECIENTE: "${contextText}". DEBES integrar este hito en el gancho inicial para demostrar conocimiento real de su trayectoria.`
+      : '';
 
-Objetivo estratégico del mensaje: 
-${objective === 'conexion' ? '- ES UNA SOLICITUD DE CONEXIÓN. NUNCA vendas tus servicios. Solo elogia su trabajo de forma auténtica. (ATENCIÓN: Límite estricto de máximo 300 caracteres, LinkedIn no permite más).' : objective === 'followup' ? '- ES UN MENSAJE TRAS ACEPTAR LA CONEXIÓN (Follow-up). REDACCIÓN EXTENSA, PROFUNDA Y DE ALTO NIVEL (Mínimo 3-4 párrafos bien desarrollados). Estructura obligatoria: 1) Gancho hiper-personalizado, 2) Empatía sobre los retos visuales en su nicho, 3) Soft Pitch profundo: Explica con autoridad cómo tu background en biomecánica escénica, luz y operación de cámara eleva sus producciones, 4) Pregunta abierta de baja fricción.' : '- ES UNA SOLICITUD DE REUNIÓN DIRECTA. REDACCIÓN EXTENSA, PROFESIONAL Y PERSUASIVA (Mínimo 3-4 párrafos). Estructura: 1) Gancho, 2) Demostración contundente de valor (por qué un ex-bailarín Director de Cámara mejora la factura visual de sus proyectos), 3) Propuesta concreta de colaboración, 4) Call to action claro para agendar una videollamada esta semana.'}
-Tono general: ${tone || 'creativo'}.
-${contextText && contextText.trim() ? `\nCONTEXTO CRÍTICO / NOTICIA: El usuario ha proveído esta información adicional sobre el contacto o su empresa: "${contextText}". DEBES incorporar inteligentemente esta noticia o contexto en el gancho inicial de tus mensajes para demostrar que estás al día con su trabajo.` : ''}
+    const systemPrompt = `Eres un estratega de prospección B2B y copywriter cinematográfico de élite. Representas a ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}. Tu ventaja competitiva única es: ${userAdvantage || 'biomecánica, ritmo escénico e iluminación dramática'}.
 
-Reglas Estrictas:
-1. Encuentra un "Gancho" específico en su perfil (o en el contexto/noticia provisto) para iniciar la conversación. MUESTRA que investigaste profundamente.
-2. NUNCA uses clichés corporativos. Escribe como un experto, directo, inteligente y con máxima autoridad técnica y artística.
-3. Las opciones deben ser EXTENSAS, altamente persuasivas y con estructura de copywriting B2B de élite (salvo en la conexión que debe ser corta):
-   - Opción 1: Profundiza exhaustivamente en el valor de tu técnica (dirección escénica, movimiento, iluminación) en relación a las producciones de su empresa. Usa narrativa envolvente.
-   - Opción 2: Centrada fuertemente en el impacto estético de la Noticia/Contexto que el usuario te dio. Escribe con autoridad técnica y lenguaje de dirección cinematográfica.
-   - Opción 3: Un acercamiento consultivo profundo, enfocado en discutir los retos de sus producciones audiovisuales y cómo tu perfil híbrido (cámara + danza) aporta soluciones únicas y de alto valor.
-4. Devuelve la respuesta en formato JSON estricto con esta estructura:
+Tu misión: Analizar el perfil y redactar 3 opciones de mensajes con impecable gusto estético, tono humano, directo y sin relleno corporativo.
+
+Objetivo estratégico seleccionado: 
+${objectiveInstruction}
+Tono: ${tone || 'creativo'}.${newsSection}
+
+Reglas Inquebrantables:
+1. Prohibidos los clichés de ventas: NUNCA uses "espero te encuentres bien", "hacer sinergia", "solución innovadora", "revolucionar". Escribe como un creador visual seguro de su arte.
+2. Cada opción debe tener un ángulo distintivo:
+   - Opción 1 (Dirección & Biomecánica): Enfoque en la precisión del movimiento corporal, luz dramática y cómo respiras con el talento en set.
+   - Opción 2 (Estética & Noticia/Campaña): Basada en su actualidad, campañas o producciones recientes, proponiendo una estética visual refinada.
+   - Opción 3 (Colega / Consultivo): Directo, entre profesionales del sector, enfocado en optimizar el flujo visual de sus próximos proyectos.
+3. Formato de salida: JSON estricto con esta estructura:
 {
-  "analisis_perfil": "Breve análisis estratégico de por qué esta persona es un buen contacto y qué gancho vas a usar.",
-  "opcion_1": "texto del mensaje",
+  "analisis_perfil": "1 o 2 frases con el diagnóstico del perfil y el ángulo estratégico elegido.",
+  "opcion_1": "texto completo del mensaje",
   "opcion_2": "texto del mensaje",
   "opcion_3": "texto del mensaje"
 }`;
