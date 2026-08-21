@@ -18,7 +18,7 @@ function App() {
   );
   const [userAdvantage, setUserAdvantage] = useState(
     localStorage.getItem('vh_advantage') || 
-    'Entender, dirigir y anticipar el movimiento corporal y la biomecánica mejor que nadie, además de dominar la iluminación dramática.'
+    'Soy ex-bailarín clásico (Conservatorio Mariemma) convertido en Director de Cámara y Fotógrafo. Mi diferencial es la comprensión absoluta de la biomecánica, el ritmo y el espacio escénico. No solo diseño iluminación dramática, sino que "respiro" con el talento en set, anticipando el clímax del movimiento para crear piezas visuales impecables. Domino todo el flujo: desde la dirección de arte hasta el color grading (DaVinci Resolve).'
   );
   
   const [loading, setLoading] = useState(false);
@@ -51,19 +51,20 @@ function App() {
 
     const systemPrompt = `Eres un experto en ventas B2B y copywriting de élite. Eres ${userIdentity}. Tu mayor diferencial es: ${userAdvantage}.
 
-Tu tarea es analizar el perfil de LinkedIn proporcionado y redactar 3 opciones de mensajes hiper-personalizados para enviarle a esta persona. 
+Tu tarea es analizar el perfil de LinkedIn proporcionado y redactar 3 opciones de mensajes hiper-personalizados, con excelente ortografía, una estructura persuasiva y un desarrollo más robusto y maduro.
+
 Objetivo estratégico del mensaje: 
-${objective === 'conexion' ? '- ES UNA SOLICITUD DE CONEXIÓN. NUNCA vendas tus servicios aquí. Solo busca que acepten la solicitud elogiando su trabajo. (Límite estricto: Máximo 300 caracteres).' : objective === 'followup' ? '- ES UN MENSAJE TRAS ACEPTAR LA CONEXIÓN. Aquí SÍ ofreces tus servicios sutilmente (Soft pitch) vinculando tu diferencial como fotógrafo/director de cámara con sus necesidades creativas.' : '- ES UNA SOLICITUD DE REUNIÓN DIRECTA para explorar colaboraciones comerciales.'}
+${objective === 'conexion' ? '- ES UNA SOLICITUD DE CONEXIÓN. NUNCA vendas tus servicios aquí. Solo busca que acepten la solicitud elogiando su trabajo. (ATENCIÓN: Límite estricto de máximo 300 caracteres, ya que LinkedIn no permite notas más largas en conexiones).' : objective === 'followup' ? '- ES UN MENSAJE TRAS ACEPTAR LA CONEXIÓN (Follow-up). Este mensaje debe ser MÁS LARGO Y COMPLETO, estructurado en 3 párrafos. 1) Gancho/Contexto, 2) Soft Pitch profundo: Vincula tu diferencial técnico y artístico con lo que ellos hacen (habla de biomecánica, luz, dirección), 3) Llamado a la acción de baja fricción.' : '- ES UNA SOLICITUD DE REUNIÓN DIRECTA. Mensaje extenso, profesional y persuasivo. 1) Gancho, 2) Demuestra tu valor (por qué un ex-bailarín que opera cámara mejora sus producciones), 3) Propuesta concreta de colaboración, 4) Call to action para una videollamada.'}
 Tono general: ${tone}.
 ${contextText.trim() ? `\nCONTEXTO CRÍTICO / NOTICIA: El usuario ha proveído esta información adicional sobre el contacto o su empresa: "${contextText}". DEBES incorporar inteligentemente esta noticia o contexto en el gancho inicial de tus mensajes para demostrar que estás al día con su trabajo.` : ''}
 
 Reglas Estrictas:
 1. Encuentra un "Gancho" específico en su perfil (o en el contexto/noticia provisto) para iniciar la conversación. MUESTRA que investigaste.
-2. NUNCA uses clichés como "innovador", "revolucionario", "espero que estés bien", "juntos podemos hacer sinergia", "espero que este mensaje te encuentre bien". Escribe como un humano directo y profesional.
-3. Las opciones deben ser:
-   - Opción 1: Centrada en el valor de tu diferencial (dirección, movimiento, técnica) en relación a su trabajo.
-   - Opción 2: Centrada en la estética, impacto visual y la noticia/contexto proporcionado.
-   - Opción 3: Casual, enfocada en networking puro e intereses mutuos.
+2. NUNCA uses clichés como "innovador", "revolucionario", "espero que estés bien", "juntos podemos hacer sinergia", "espero que este mensaje te encuentre bien". Escribe como un humano directo, inteligente y altamente profesional.
+3. Las opciones deben ser estructuradas, legibles y completas (salvo en el caso de la conexión que debe ser corta):
+   - Opción 1: Profundiza en el valor de tu técnica (dirección escénica, movimiento, iluminación) en relación a las producciones de su empresa.
+   - Opción 2: Centrada fuertemente en el impacto estético de la Noticia/Contexto que el usuario te dio.
+   - Opción 3: Un acercamiento más consultivo y enfocado en discutir los retos de sus producciones audiovisuales.
 4. Devuelve la respuesta en formato JSON estricto con esta estructura:
 {
   "analisis_perfil": "Breve análisis estratégico de por qué esta persona es un buen contacto y qué gancho vas a usar.",
