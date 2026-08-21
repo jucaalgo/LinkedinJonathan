@@ -6,7 +6,7 @@ function localApiPlugin() {
   return {
     name: 'local-api-plugin',
     configureServer(server) {
-      // 1. Endpoint para escanear noticias (Top 3)
+      // 1. Endpoint para escanear noticias orientadas 100% a la COMPAÑÍA / AGENCIA
       server.middlewares.use('/api/scan-news', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -28,17 +28,22 @@ function localApiPlugin() {
 
             if (keyToUse) {
               try {
-                const extractionPrompt = `Analiza este perfil de LinkedIn y extrae con máxima precisión:
-1. Nombre completo de la persona.
-2. Empresa actual, productora, agencia, teatro o colectivo donde trabaja.
-3. Sector artístico/comercial principal.
-4. Genera exactamente 2 términos de búsqueda específicos para Google News España sobre sus proyectos, campañas, estrenos o premios recientes.
+                const extractionPrompt = `Eres un investigador de inteligencia comercial B2B para la industria audiovisual y publicitaria en España.
+Analiza este perfil de LinkedIn e identifica:
+1. El NOMBRE DE LA EMPRESA, AGENCIA DE PUBLICIDAD, PRODUCTORA AUDIOVISUAL, ESTUDIO O TEATRO / COMPAÑÍA DE ARTES ESCÉNICAS actual o más relevante donde trabaja o ha producido proyectos.
+2. El nombre de la persona.
+3. El sector principal.
+4. Genera exactamente 2 consultas de búsqueda para Google News España que estén 100% ENFOCADAS EN LA EMPRESA/COMPAÑÍA y sus campañas, estrenos, premios o producciones recientes (NO busques nombres genéricos de personas si no van acompañados de su empresa).
 
-Devuelve SOLO JSON estricto:
+Ejemplo de queries esperadas:
+- '"NombreEmpresa" (campaña OR estreno OR spot OR producción OR premio OR festival)'
+- '"NombreEmpresa" Madrid publicidad'
+
+Devuelve SOLO un JSON con esta estructura exacta:
 {
-  "name": "Nombre",
-  "company": "Empresa o Colectivo",
-  "sector": "Sector",
+  "name": "Nombre de la persona",
+  "company": "Nombre exacto de la empresa / agencia / productora",
+  "sector": "Publicidad / Cine / Danza / Teatro / Moda",
   "queries": ["query 1", "query 2"]
 }`;
 
@@ -67,9 +72,15 @@ Devuelve SOLO JSON estricto:
               } catch (_) {}
             }
 
-            if (searchQueries.length === 0) {
+            if (entityInfo.company && entityInfo.company.trim().length > 2) {
+              const cleanCompany = entityInfo.company.replace(/[^\w\s\u00C0-\u017F]/gi, '').trim();
+              searchQueries = [
+                `"${cleanCompany}" (campaña OR estreno OR spot OR rodaje OR premio OR producción)`,
+                `"${cleanCompany}" Madrid`
+              ];
+            } else if (searchQueries.length === 0) {
               const firstLine = (profileText || '').split('\n')[0] || '';
-              searchQueries.push(firstLine.substring(0, 35));
+              searchQueries.push(`"${firstLine.substring(0, 30)}" (campaña OR estreno OR publicidad)`);
             }
 
             const newsResults = [];
@@ -101,7 +112,7 @@ Devuelve SOLO JSON estricto:
 
                     if (title && !seen.has(title)) {
                       seen.add(title);
-                      newsResults.push({ title, link, pubDate: formattedDate, source });
+                      newsResults.push({ title, link, pubDate: formattedDate, source, companyTarget: entityInfo.company });
                     }
                   }
                 }
@@ -119,7 +130,7 @@ Devuelve SOLO JSON estricto:
         });
       });
 
-      // 2. Endpoint para generar mensajes (1200 - 1800 caracteres)
+      // 2. Endpoint para generar mensajes (1.200 - 1.800 caracteres)
       server.middlewares.use('/api/generate', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -152,7 +163,7 @@ CONTENIDO: Elogio sincero y específico sobre su trabajo o noticia reciente. CER
               objectiveInstruction = `OBJETIVO: MENSAJE TRAS ACEPTAR CONEXIÓN (Follow-up de Alto Impacto).
 REGLA OBLIGATORIA DE EXTENSIÓN: El mensaje DEBE TENER ENTRE 1.200 Y 1.800 CARACTERES (aproximadamente 200 a 300 palabras). No escribas textos cortos o telegráficos; debe ser un mensaje completo, elocuente y exhaustivo.
 ESTRUCTURA OBLIGATORIA EN PÁRRAFOS:
-1. APERTURA Y GANCHO CONTEXTUAL: Agradecimiento cálido por conectar. Análisis profundo de su trabajo, última campaña o hito reciente (usando la noticia/contexto proporcionado). Demuestra que conoces su lenguaje visual.
+1. APERTURA Y GANCHO CONTEXTUAL: Agradecimiento cálido por conectar. Análisis profundo de su trabajo, última campaña o hito reciente de su empresa (usando la noticia/contexto proporcionado). Demuestra que conoces su lenguaje visual.
 2. EL DIFERENCIAL ARTÍSTICO Y BIOMECÁNICA: Explica con autoridad cómo tu background como ex-bailarín clásico profesional (Conservatorio Mariemma) se traduce en la dirección y operación de cámara. Detalla cómo entiendes la biomecánica, el ritmo del espacio escénico y cómo "respiras" con el talento en set para capturar el clímax del movimiento con precisión milimétrica.
 3. DOMINIO TÉCNICO INTEGRAL: Menciona el diseño de iluminación dramática adaptada a la narrativa y el flujo completo hasta el color grading final en DaVinci Resolve para entregar un acabado cinematográfico de primer nivel sin necesidad de micromanagement.
 4. CIERRE ELEGANTE Y DE BAJA FRICCIÓN: Propuesta de valor abierta para estar en su radar cuando surjan producciones que requieran este nivel de dinamismo corporal y lumínico, invitando a ver tu reel o dossier.`;
@@ -169,11 +180,11 @@ ESTRUCTURA:
             let fullContext = '';
             if (contextText && contextText.trim()) fullContext += `Contexto manual: ${contextText.trim()}. `;
             if (selectedNews && typeof selectedNews === 'string' && selectedNews.trim()) {
-              fullContext += `Noticia/Evento reciente: "${selectedNews.trim()}". `;
+              fullContext += `Noticia/Evento de la compañía: "${selectedNews.trim()}". `;
             }
 
             const newsSection = fullContext.trim()
-              ? `\nINFORMACIÓN DE ACTUALIDAD Y PROYECTOS RECIENTES: "${fullContext.trim()}". DEBES integrar inteligentemente este hito en el análisis inicial del mensaje.`
+              ? `\nINFORMACIÓN DE ACTUALIDAD DE LA COMPAÑÍA/PROYECTOS: "${fullContext.trim()}". DEBES integrar este hito en el análisis inicial del mensaje.`
               : '';
 
             const systemPrompt = `Eres un copywriter cinematográfico de élite y director de prospección B2B. Escribes en nombre de ${userIdentity || 'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo'}.
@@ -188,7 +199,7 @@ CRITERIOS DE EXCELENCIA DE REDACCIÓN:
 2. CUIDADO GRAMATICAL Y RIQUEZA LÉXICA: Puntuación impecable, transiciones fluidas entre párrafos, terminología precisa de dirección de cámara (ritmo, encuadre, biomecánica, etalonaje, esquemas de luz).
 3. DISTINCIÓN DE LAS 3 VARIANTES:
    - Opción 1 (Enfoque Dirección de Cámara & Biomecánica): Enfatiza la coreografía de la cámara, el lenguaje del cuerpo y la anticipación del movimiento en set.
-   - Opción 2 (Enfoque Narrativa Estética & Noticia/Actualidad): Desarrolla el mensaje anclado en su campaña o proyecto reciente, proponiendo una visión visual sofisticada.
+   - Opción 2 (Enfoque Narrativa Estética & Noticia/Actualidad de la Empresa): Desarrolla el mensaje anclado en su campaña o proyecto reciente, proponiendo una visión visual sofisticada.
    - Opción 3 (Enfoque Consultivo / Sinergia de Producción): Aborda los desafíos habituales en rodajes comerciales/escénicos y cómo tu visión integral agiliza y potencia la producción.
 4. LONGITUD: Asegúrate de que las opciones 1, 2 y 3 para Follow-up y Reunión alcancen entre 1.200 y 1.800 caracteres cada una.
 

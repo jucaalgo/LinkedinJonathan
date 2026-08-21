@@ -28,20 +28,25 @@ export default async function handler(req, res) {
     let searchQueries = [];
     let entityInfo = { name: '', company: '', sector: '' };
 
-    // 1. Extraer entidades clave con DeepSeek
+    // 1. Extraer con máxima precisión la COMPAÑÍA / AGENCIA / PRODUCTORA / TEATRO
     if (keyToUse) {
       try {
-        const extractionPrompt = `Analiza este perfil de LinkedIn y extrae con máxima precisión:
-1. Nombre completo de la persona.
-2. Empresa actual, productora, agencia, teatro o colectivo donde trabaja.
-3. Sector artístico/comercial principal.
-4. Genera exactamente 2 términos de búsqueda específicos para Google News España sobre sus proyectos, campañas, estrenos o premios recientes.
+        const extractionPrompt = `Eres un investigador de inteligencia comercial B2B para la industria audiovisual y publicitaria en España.
+Analiza este perfil de LinkedIn e identifica:
+1. El NOMBRE DE LA EMPRESA, AGENCIA DE PUBLICIDAD, PRODUCTORA AUDIOVISUAL, ESTUDIO O TEATRO / COMPAÑÍA DE ARTES ESCÉNICAS actual o más relevante donde trabaja o ha producido proyectos.
+2. El nombre de la persona.
+3. El sector principal.
+4. Genera exactamente 2 consultas de búsqueda para Google News España que estén 100% ENFOCADAS EN LA EMPRESA/COMPAÑÍA y sus campañas, estrenos, premios o producciones recientes (NO busques nombres genéricos de personas si no van acompañados de su empresa).
 
-Devuelve SOLO JSON estricto:
+Ejemplo de queries esperadas:
+- '"NombreEmpresa" (campaña OR estreno OR spot OR producción OR premio OR festival)'
+- '"NombreEmpresa" Madrid publicidad'
+
+Devuelve SOLO un JSON con esta estructura exacta:
 {
-  "name": "Nombre",
-  "company": "Empresa o Colectivo",
-  "sector": "Sector",
+  "name": "Nombre de la persona",
+  "company": "Nombre exacto de la empresa / agencia / productora",
+  "sector": "Publicidad / Cine / Danza / Teatro / Moda",
   "queries": ["query 1", "query 2"]
 }`;
 
@@ -64,7 +69,11 @@ Devuelve SOLO JSON estricto:
         if (extractRes.ok) {
           const extractData = await extractRes.json();
           const parsed = JSON.parse(extractData.choices[0].message.content);
-          entityInfo = { name: parsed.name || '', company: parsed.company || '', sector: parsed.sector || '' };
+          entityInfo = { 
+            name: parsed.name || '', 
+            company: parsed.company || '', 
+            sector: parsed.sector || '' 
+          };
           if (Array.isArray(parsed.queries) && parsed.queries.length > 0) {
             searchQueries = parsed.queries;
           }
@@ -74,15 +83,20 @@ Devuelve SOLO JSON estricto:
       }
     }
 
-    // Fallback de queries si no se extrajeron con IA
-    if (searchQueries.length === 0) {
+    // Si tenemos la compañía, forzamos la búsqueda orientada a la compañía
+    if (entityInfo.company && entityInfo.company.trim().length > 2) {
+      const cleanCompany = entityInfo.company.replace(/[^\w\s\u00C0-\u017F]/gi, '').trim();
+      searchQueries = [
+        `"${cleanCompany}" (campaña OR estreno OR spot OR rodaje OR premio OR producción)`,
+        `"${cleanCompany}" Madrid`
+      ];
+    } else if (searchQueries.length === 0) {
       const lines = profileText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const firstLine = lines[0] || '';
-      searchQueries.push(firstLine.substring(0, 35));
-      if (entityInfo.company) searchQueries.push(`${entityInfo.company} Madrid`);
+      searchQueries.push(`"${firstLine.substring(0, 30)}" (campaña OR estreno OR publicidad)`);
     }
 
-    // 2. Consultar Google News RSS (Estrictamente las 3 noticias más recientes)
+    // 2. Consultar Google News RSS enfocado en la empresa (Estrictamente las 3 más relevantes)
     const newsResults = [];
     const seenTitles = new Set();
 
@@ -120,7 +134,7 @@ Devuelve SOLO JSON estricto:
                 link,
                 pubDate: formattedDate,
                 source,
-                queryMatched: query
+                companyTarget: entityInfo.company || 'Compañía'
               });
             }
           }
@@ -130,7 +144,6 @@ Devuelve SOLO JSON estricto:
       }
     }
 
-    // Devolver estrictamente máximo 3 noticias
     return res.status(200).json({
       entity: entityInfo,
       news: newsResults.slice(0, 3),
