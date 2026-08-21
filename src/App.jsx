@@ -9,7 +9,9 @@ function App() {
   const [tone, setTone] = useState('creativo');
   
   // Settings State
-  const [apiKey, setApiKey] = useState(localStorage.getItem('vh_apiKey') || '');
+  const [apiKey, setApiKey] = useState(
+    import.meta.env.VITE_DEEPSEEK_API_KEY || localStorage.getItem('vh_apiKey') || ''
+  );
   const [userIdentity, setUserIdentity] = useState(
     localStorage.getItem('vh_identity') || 
     'Jonathan Ocampo Yandy, Director de Cámara y Fotógrafo en Madrid. Ex-bailarín clásico profesional (Conservatorio Mariemma).'
